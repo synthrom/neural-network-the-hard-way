@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "neural-network"
+version = "0.1.0"
+description = ""
+authors = ["Geoff Shoupp <geoff@coffee-house.io>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+numpy = "^1.26.4"
+pandas = "^2.2.1"
+create-logger = {path = "neural_network/logger-helper"}
+notebook = "^7.1.2"
+ipython-tikzmagic = {git = "https://github.com/mkrphys/ipython-tikzmagic.git"}
+
+[tool.poetry.dev-dependencies]
+black = {version = "24.2.0", python = ">=3.6.2"}
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

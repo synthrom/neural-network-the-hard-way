@@ -1,0 +1,16 @@
+{
+    "activation_function": "tanh",
+    "actual_value_key": "species",
+    "coefficient": null,
+    "cost_function": "meansq",
+    "epoch_size": 100,
+    "hidden_layers": [
+        2
+    ],
+    "initial_learning_rate": 0.1,
+    "learning_rate_decay": 0.04,
+    "momentum": 0.9,
+    "regularization_strength": 0.1,
+    "name": "iris",
+    "percentage_of_data": 70
+}
