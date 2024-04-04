@@ -33,7 +33,10 @@ class LogisticActivationFunction(ActivationFunction):
 
 class TanhActivationFunction(ActivationFunction):
     def equation(x: float) -> float:
-        return (2 / (1 + exp(-2 * x))) - 1
+        try:
+            return (2 / (1 + exp(-2 * x))) - 1
+        except OverflowError:
+            return -1
 
     @classmethod
     def derivative(cls, x: float) -> float:
