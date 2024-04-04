@@ -7,8 +7,16 @@ from layer import Layer
 import pandas
 import numpy
 import sys
+import os
+import matplotlib.pyplot as plt
 
-from neural_network.evolve import evolve
+from neural_network.evolve import Evolve
+
+
+# A = activation function
+# i = activation energy
+# z = activation value
+# w = weight
 
 logger = create_logger(
     name="neural_network",
@@ -58,7 +66,7 @@ def main():
     cost_function: {parameters["cost_function"]}
     epoch_size: {parameters["epoch_size"]}
     inputs: {args.inputs}
-    hidden_layers: {parameters["hidden_layers"]}
+    number_of_nodes_per_layer: {parameters["number_of_nodes_per_layer"]}
     name: {parameters["name"]} 
     actual_value_key: {parameters["actual_value_key"]}
     parameters_file: {args.parameters_file}
@@ -69,27 +77,33 @@ def main():
     output_df = input_df[parameters["actual_value_key"]]
     unique_outputs = list(set(output_df))
     unique_outputs.sort()
+    logger.debug(f"Discrete outputs: {unique_outputs}")
 
     # Create each layer
     layers = []
-    for index, node in enumerate(range(0, len(parameters["hidden_layers"]))):
+    # Number of layers = number of hidden layers + output layer
+    number_of_layers = len(parameters["number_of_nodes_per_layer"]) + 1
+    for layer_index in range(0, number_of_layers, 1):
         layers.append(
             Layer(
-                # Name of layer
-                name=f"Layer {index}",
-                # Number of nodes
-                nodes=parameters["hidden_layers"][node],
-                # number of incoming inputs
-                number_of_inputs=(
-                    len(input_df.columns) - 1
-                    if (index - 1) < 0
-                    else parameters["hidden_layers"][index - 1]
+                name=(
+                    f"Layer {layer_index+1}"
+                    if layer_index < number_of_layers - 1
+                    else "Output Layer"
                 ),
-                # Set the number of outputs based on all nodes; if the last node, set to number of desired outputs
+                number_of_inputs=(
+                    # take the data frame columns, minus the outputs for the first layer
+                    len(input_df.columns) - 1
+                    if layer_index == 0
+                    # Otherwise, the number of inputs should be the number of outputs from the last layer
+                    else parameters["number_of_nodes_per_layer"][layer_index - 1]
+                ),
                 number_of_outputs=(
-                    parameters["hidden_layers"][index + 1]
-                    if (index + 1) < len(parameters["hidden_layers"])
-                    else len(unique_outputs)
+                    # The number of outputs from our number_of_nodes_per_layer parameters
+                    len(unique_outputs)
+                    if layer_index == number_of_layers - 1
+                    # Unless we're at the last layer, then it should match the number of outputs
+                    else parameters["number_of_nodes_per_layer"][layer_index]
                 ),
                 # Give the activation function
                 activation_function=activation_functions.activation_function_options[
@@ -97,84 +111,63 @@ def main():
                 ],
             )
         )
-    # Add the output layer
-    layers.append(
-        Layer(
-            # Name
-            name="Output layer",
-            # number of nodes
-            nodes=len(unique_outputs),
-            # number of incoming inputs
-            number_of_inputs=(
-                parameters["hidden_layers"][-1]
-                if parameters["hidden_layers"]
-                else len(input_df.columns) - 1
-            ),
-            # Set the number of outputs based on all nodes; if the last node, set to number of desired outputs
-            number_of_outputs=len(unique_outputs),
-            # Give the activation function
-            activation_function=activation_functions.activation_function_options[
-                parameters["activation_function"]
-            ],
-        )
+
+    learn_rate = parameters["initial_learning_rate"]
+    evolve = Evolve(
+        layers=layers,
+        cost_function=cost.cost_function_options[parameters["cost_function"]],
+        regularization=parameters["regularization_strength"],
+        learn_rate=learn_rate,
+        momentum=parameters["momentum"],
     )
 
     # Get length of test data to use for training
-    training_data_length = int((input_df.size * parameters["percentage_of_data"]) / 100)
+    input_df_size, _ = input_df.shape
+    # Get how large the training data is based on the percentage of data specified in the parameters
+    training_data_length = int((input_df_size * parameters["percentage_of_data"]) / 100)
+    # Get how many epochs we need based on the epoch size specified in the parameters
+    number_of_epochs = int(training_data_length / parameters["epoch_size"])
+    logger.debug(
+        f"""
+    traning_data_length: {training_data_length}
+    number_of_epochs: {number_of_epochs}
+    """
+    )
+    if not number_of_epochs:
+        number_of_epochs = 1
+    # Convert the input data to a numpy array
+    training_data_from_df = input_df.to_numpy()
+    # Slice off the correct amount of training data
+    training_data = training_data_from_df[:training_data_length, :]
+    # Randomize the training data
+    numpy.random.shuffle(training_data)
+    # Split the training data into the correct amount of epochs
+    epochs = numpy.array_split(
+        training_data,
+        number_of_epochs,
+    )
 
-    # Create array for capturing activation function derivative information
-    activation_function_derivatives = []
-
-    learn_rate = parameters["initial_learning_rate"]
-
-    # Split up the data into epochs based on epoch size
-    for epoch_index, epoch in enumerate(
-        numpy.array_split(
-            numpy.array(input_df[:training_data_length].sample(frac=1)),
-            int(training_data_length / parameters["epoch_size"]),
-        )
-    ):
+    plot_data = []
+    # Iterate over the epochs
+    for epoch_index, epoch in enumerate(epochs):
+        epoch_plot = [[], []]
         epoch_cost_total = 0
+        logger.debug(f"--------EPOCH {epoch_index+1} START--------")
+        # Iterate over the data points in the epoch
         for data_index, data in enumerate(epoch):
-            # TODO: derivative of activation values with respect to weight
-            # TODO: derivative of activation values with respect to bias
-            activation_function_derivative_layer = []
-            # Pass initial input data through first layer
-            # Calculate activation values z
-            activation_values = (
-                numpy.matmul(layers[0].weighted_inputs, data[:-1]) + layers[0].bias
-            )
-            # Pass activation values through activation function A(z)
-            output_of_layer = layers[0].get_outputs(activation_values)
-            # Get derivative of activation function with respect to values for use later
-            activation_function_derivative_values = layers[0].get_derivative(
-                activation_values
-            )
-            # Add derivative values to list
-            activation_function_derivative_layer.append(
-                activation_function_derivative_values
-            )
-            for layer in layers[1:]:
-                # Pass outputs of previous layers to next layer
-                # Do same steps as above (calculate z, pass to activation function, get derivative values)
-                activation_values = (
-                    numpy.matmul(layer.weighted_inputs, output_of_layer) + layer.bias
-                )
-                output_of_layer = layer.get_outputs(activation_values)
-                activation_function_derivative_values = layer.get_derivative(
-                    activation_values
-                )
-                activation_function_derivative_layer.append(
-                    activation_function_derivative_values
-                )
-            # Add the derivatives to the list of derivatives of the activation funciton
-            activation_function_derivatives.append(activation_function_derivative_layer)
-            logger.debug(
-                f"activation_function_derivative_layer: {activation_function_derivative_layer}"
-            )
+            for layer_index, layer in enumerate(layers):
+
+                if layer_index == 0:
+                    # If first layer, input the data
+                    layer.input_values = data[:-1]
+                else:
+                    # Pass outputs of previous layers to next layer
+                    layer.input_values = layers[layer_index - 1].activation_energies
+
             # Get the column with the number closest to 1
             column_number = numpy.where(
-                output_of_layer == numpy.max(output_of_layer, axis=0)
+                layer.activation_energies
+                == numpy.max(layer.activation_energies, axis=0)
             )[0][0]
             # Create an array of expected output
             expected_outputs = numpy.array([0 for output in unique_outputs])
@@ -182,12 +175,14 @@ def main():
             # Calculate total cost
             epoch_cost_total += cost.cost_function_options[
                 parameters["cost_function"]
-            ].calculate_error(output_of_layer, expected_outputs)
+            ].calculate_error(layer.activation_energies, expected_outputs)
+            epoch_plot[0].append(data[-1])
+            epoch_plot[1].append(unique_outputs[column_number])
             logger.debug(
                 f"""
-            ===================
+            ========Data Point {data_index+1}===========
             Expected Outputs: {expected_outputs}
-            Output of layer: {output_of_layer}
+            Output of layer: {layer.activation_energies}
             Actual: {data[-1]}
             Predicted: {unique_outputs[column_number]}
             Unique Outputs: {unique_outputs}
@@ -195,21 +190,31 @@ def main():
             Epoch Cost Average: {epoch_cost_total/(data_index+1)}
             """
             )
-        # Use cost to evaluate change in variables
-        evolve(
-            layers=layers,
-            cost_function=cost.cost_function_options[parameters["cost_function"]],
-            output=output_of_layer,
-            expected_output=expected_outputs,
-            regularization=parameters["regularization_strength"],
-            learn_rate=learn_rate,
-            activation_function_derivatives=activation_function_derivatives,
-        )
+
+            evolve.update_weight_velocities(list(data[:-1]), expected_outputs)
+
         learn_rate = (
-            1.0 / (1.0 + parameters["learning_rate_decay"] * (epoch_index + 1))
+            1.0 / (1.0 + (parameters["learning_rate_decay"] * (epoch_index + 1)))
         ) * parameters["initial_learning_rate"]
         logger.debug(f"learn_rate: {learn_rate}")
+        plot_data.append(epoch_plot)
         logger.debug(f"--------EPOCH {epoch_index+1} COMPLETE--------")
+        for layer in layers:
+            layer.reset_velocities()
+
+    output_folder = f"./neural_network/trained_data/{parameters['name']}"
+    if not os.path.exists(output_folder):
+        os.mkdir(output_folder)
+    with open(f"{output_folder}/outputs.json", "w") as f:
+        json.dump(plot_data, f)
+
+    fig, axs = plt.subplots(number_of_epochs)
+    fig.suptitle("Data Fit")
+    for plot_index, plot_datum in enumerate(plot_data):
+        t = numpy.arange(0.0, len(plot_datum[0]), 1)
+        axs[plot_index].plot(t, plot_datum[0], "r--", t, plot_datum[1], "b--")
+
+    plt.show()
     return 0
 
 
