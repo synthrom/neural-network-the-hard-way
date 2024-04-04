@@ -12,6 +12,7 @@ pandas = "^2.2.1"
 create-logger = {path = "neural_network/logger-helper"}
 notebook = "^7.1.2"
 ipython-tikzmagic = {git = "https://github.com/mkrphys/ipython-tikzmagic.git"}
+matplotlib = "^3.8.3"
 
 [tool.poetry.dev-dependencies]
 black = {version = "24.2.0", python = ">=3.6.2"}
