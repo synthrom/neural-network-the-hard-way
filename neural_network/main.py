@@ -26,6 +26,17 @@ logger = create_logger(
 )
 
 
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, numpy.integer):
+            return int(obj)
+        if isinstance(obj, numpy.floating):
+            return float(obj)
+        if isinstance(obj, numpy.ndarray):
+            return obj.tolist()
+        return super(NpEncoder, self).default(obj)
+
+
 def load_files(input_file: str) -> pandas.DataFrame:
     if "csv" in input_file:
         return pandas.read_csv(input_file)
@@ -147,22 +158,24 @@ def main():
         number_of_epochs,
     )
 
-    plot_data = []
+    epoch_plot_data = []
+    error_plot_data = []
     # Iterate over the epochs
     for epoch_index, epoch in enumerate(epochs):
         epoch_plot = [[], []]
+        error_plot = []
         epoch_cost_total = 0
         logger.debug(f"--------EPOCH {epoch_index+1} START--------")
         # Iterate over the data points in the epoch
         for data_index, data in enumerate(epoch):
             for layer_index, layer in enumerate(layers):
-
                 if layer_index == 0:
                     # If first layer, input the data
                     layer.input_values = data[:-1]
                 else:
                     # Pass outputs of previous layers to next layer
                     layer.input_values = layers[layer_index - 1].activation_energies
+                # layer.print_layer()
 
             # Get the column with the number closest to 1
             column_number = numpy.where(
@@ -173,9 +186,11 @@ def main():
             expected_outputs = numpy.array([0 for output in unique_outputs])
             expected_outputs[unique_outputs.index(data[-1])] = 1
             # Calculate total cost
-            epoch_cost_total += cost.cost_function_options[
+            epoch_cost = cost.cost_function_options[
                 parameters["cost_function"]
             ].calculate_error(layer.activation_energies, expected_outputs)
+            epoch_cost_total += epoch_cost
+            error_plot.append(epoch_cost)
             epoch_plot[0].append(data[-1])
             epoch_plot[1].append(unique_outputs[column_number])
             logger.debug(
@@ -192,28 +207,40 @@ def main():
             )
 
             evolve.update_weight_velocities(list(data[:-1]), expected_outputs)
+            # remove
+            # break
 
         learn_rate = (
             1.0 / (1.0 + (parameters["learning_rate_decay"] * (epoch_index + 1)))
-        ) * parameters["initial_learning_rate"]
+        ) * learn_rate
+        evolve.learn_rate = learn_rate
         logger.debug(f"learn_rate: {learn_rate}")
-        plot_data.append(epoch_plot)
+        epoch_plot_data.append(epoch_plot)
+        error_plot_data.append(error_plot)
         logger.debug(f"--------EPOCH {epoch_index+1} COMPLETE--------")
-        for layer in layers:
-            layer.reset_velocities()
+        # for layer in layers:
+        #     layer.reset_velocities()
+        # remove
+        # break
 
     output_folder = f"./neural_network/trained_data/{parameters['name']}"
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
     with open(f"{output_folder}/outputs.json", "w") as f:
-        json.dump(plot_data, f)
+        json.dump(epoch_plot_data, f)
+    with open(f"{output_folder}/errors.json", "w") as f:
+        json.dump(error_plot_data, f, cls=NpEncoder)
 
-    fig, axs = plt.subplots(number_of_epochs)
+    fig, axs = plt.subplots(number_of_epochs, 2, sharex=False, sharey=False)
     fig.suptitle("Data Fit")
-    for plot_index, plot_datum in enumerate(plot_data):
+    for plot_index, plot_datum in enumerate(epoch_plot_data):
         t = numpy.arange(0.0, len(plot_datum[0]), 1)
-        axs[plot_index].plot(t, plot_datum[0], "r--", t, plot_datum[1], "b--")
-
+        axs[plot_index, 0].plot(t, plot_datum[0], "r--", t, plot_datum[1], "b--")
+    for error_plot_index, error_plot_datum in enumerate(error_plot_data):
+        t = numpy.arange(0.0, len(error_plot_datum), 1)
+        axs[error_plot_index, 1].plot(t, error_plot_datum, "r--")
+    axs[0, 0].set_title("Prediction vs Actual")
+    axs[0, 1].set_title("Errors")
     plt.show()
     return 0
 
