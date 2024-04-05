@@ -2,6 +2,10 @@ import pandas
 import numpy
 from neural_network.activation_functions import ActivationFunction
 
+import logging
+
+logger = logging.getLogger("neural_network.log")
+
 
 class Layer:
     """
@@ -48,6 +52,24 @@ class Layer:
         self.number_of_outputs = number_of_outputs
         self.activation_function = activation_function
         self.input_values = []
+
+    def print_layer(self):
+        logger.debug(
+            f"""
+name: {self.name}
+bias: {self.bias}
+bias_velocities: {self.bias_velocities}  
+weights: {self.weights} 
+weighted_velocities: {self.weighted_velocities}
+number_of_inputs: {self.number_of_inputs}
+number_of_outputs: {self.number_of_outputs}
+activation_function: {self.activation_function}
+input_values: {self.input_values}
+activation_values: {self.activation_values}
+activation_energies: {self.activation_energies}
+activation_function_derivatives: {self.activation_function_derivatives}
+        """
+        )
 
     @property
     def activation_values(self):
