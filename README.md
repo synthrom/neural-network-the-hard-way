@@ -11,6 +11,7 @@ Basic idea is (this applies to bias the same way but without the weight decay):
     1. This will act as a limiter on the velocity the weight will change
 3. Have learn rate
     1. This will act on the cost gradient
+4. learn_rate = learn_rate/(1+(learn_rate_decay * epoch #))
 4. velocity = weightVelocities[i] * momentum - costGradientW[i] * learnRate;
 5. weightDecay = (1 - regularization * learnRate);
 6. new weights[i] = weight * weightDecay + velocity;
