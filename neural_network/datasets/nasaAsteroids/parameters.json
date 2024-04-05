@@ -1,5 +1,5 @@
 {
-    "activation_function": "gaussian",
+    "activation_function": "tanh",
     "actual_value_key": "Hazardous",
     "coefficient": null,
     "cost_function": "meansq",
@@ -9,8 +9,8 @@
         4,
         2
     ],
-    "initial_learning_rate": 0.1,
-    "learning_rate_decay": 0.04,
+    "initial_learning_rate": 0.05,
+    "learning_rate_decay": 0.075,
     "momentum": 0.9,
     "regularization_strength": 0.1,
     "name": "nasaAsteroid",
