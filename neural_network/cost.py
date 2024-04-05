@@ -18,7 +18,8 @@ class MeanAbsolute(CostFunction):
 class MeanSquared(CostFunction):
     def calculate_error(predicted_value, actual_value):
         error = predicted_value - actual_value
-        return numpy.sum(error * error)
+        length = error.shape[0]
+        return numpy.sum(error**2) / length
 
     def derivative(predicted_value: DataFrame, actual_value: DataFrame):
         return 2 * (predicted_value - actual_value)
